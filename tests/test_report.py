@@ -62,6 +62,19 @@ def test_untrusted_text_cannot_inject_markdown(rules):
     assert "`evil'](https://evil.example)'.py:1`" in md  # backticks neutralised inside the code span
 
 
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        ("Run `npm install` and commit.", "Run `npm install` and commit."),
+        ("Use `pip-compile` / `uv pip compile`.", "Use `pip-compile` / `uv pip compile`."),
+        ("[x](https://evil.example) then `ok`", r"\[x\](https://evil.example) then `ok`"),
+        ("unbalanced ` tick **here**", r"unbalanced tick \*\*here\*\*"),
+    ],
+)
+def test_prose_keeps_inline_code_but_escapes_the_rest(raw, expected):
+    assert report._prose(raw) == expected
+
+
 def test_only_safe_reference_urls_are_shown(rules):
     result = ScanResult(target=".")
     result.add_findings([make(rules, references=("https://osv.dev/vulnerability/X", "javascript:alert(1)"))])

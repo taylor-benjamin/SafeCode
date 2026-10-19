@@ -1,0 +1,4 @@
+# SC-004: unpinned versions; every install can pull in something different.
+pytest>=7
+black
+flake8~=6.0

@@ -1,18 +1,18 @@
 ## 🛡️ SAFECODE security report for `vulnerable-app`
 
-**18 findings**: 🔴 3 critical · 🟠 11 high · 🟡 4 medium · 🔵 0 low · ⚪ 0 info
+**22 findings**: 🔴 3 critical · 🟠 11 high · 🟡 7 medium · 🔵 1 low · ⚪ 0 info
 
 ### Checklist
 
 | | Rule | Result | Standards |
 |---|---|---|---|
 | ❌ | **SC-001** No secrets in code or git history | 1 finding | A07:2025 · CWE-798 · SSDF PS.1 |
-| ❌ | **SC-002** No known-vulnerable dependencies | 7 findings | A03:2025 · CWE-1395 · SSDF PW.4 |
+| ❌ | **SC-002** No known-vulnerable dependencies | 8 findings | A03:2025 · CWE-1395 · SSDF PW.4 |
 | ❌ | **SC-003** No SQL injection or unsafe eval | 6 findings | A05:2025 · CWE-89 · CWE-95 · SSDF PW.5 |
-| ⏭️ | **SC-004** Lockfile present and dependency versions pinned | not implemented yet | A03:2025 · CWE-1357 · SSDF PW.4 |
-| ⏭️ | **SC-005** .gitignore excludes secrets and credentials | not implemented yet | A02:2025 · CWE-538 · SSDF PS.1 |
-| ⏭️ | **SC-006** SECURITY.md exists | not implemented yet | SSDF RV.1 |
-| ⏭️ | **SC-007** Branch protection enabled on the default branch | not implemented yet | A08:2025 · SSDF PS.1 · SSDF PO.5 |
+| ❌ | **SC-004** Lockfile present and dependency versions pinned | 1 finding | A03:2025 · CWE-1357 · SSDF PW.4 |
+| ❌ | **SC-005** .gitignore excludes secrets and credentials | 1 finding | A02:2025 · CWE-538 · SSDF PS.1 |
+| ❌ | **SC-006** SECURITY.md exists | 1 finding | SSDF RV.1 |
+| ⏭️ | **SC-007** Branch protection enabled on the default branch | not checked: no GitHub repository (runs automatically in Actions) | A08:2025 · SSDF PS.1 · SSDF PO.5 |
 | ❌ | **SC-008** No cleartext HTTP or disabled TLS verification | 4 findings | A04:2025 · CWE-319 · CWE-295 · SSDF PW.5 |
 
 ### Findings
@@ -74,7 +74,7 @@
 **lodash 4.17.15 has 6 known vulnerabilities**
 `package-lock.json:11` · SC-002 · [OWASP A03:2025](https://owasp.org/Top10/2025/A03_2025-Software_Supply_Chain_Failures/ "Software Supply Chain Failures") · [CWE-1395](https://cwe.mitre.org/data/definitions/1395.html "Dependency on Vulnerable Third-Party Component") · [CWE-1321](https://cwe.mitre.org/data/definitions/1321.html "Prototype Pollution") · [CWE-770](https://cwe.mitre.org/data/definitions/770.html "Allocation of Resources Without Limits or Throttling") · [CWE-77](https://cwe.mitre.org/data/definitions/77.html "Command Injection") · [CWE-94](https://cwe.mitre.org/data/definitions/94.html "Code Injection") · [SSDF PW.4](https://csrc.nist.gov/pubs/sp/800/218/final "Reuse Existing, Well-Secured Software When Feasible")
 
-> lodash 4.17.15 (npm) is affected by CVE-2020-8203 (Prototype Pollution in lodash); CVE-2021-23337 (Command Injection in lodash); CVE-2026-4800 (lodash vulnerable to Code Injection via \`\_.template\` imports key names); and 3 more.
+> lodash 4.17.15 (npm) is affected by CVE-2020-8203 (Prototype Pollution in lodash); CVE-2021-23337 (Command Injection in lodash); CVE-2026-4800 (lodash vulnerable to Code Injection via `_.template` imports key names); and 3 more.
 
 - **Why it matters:** Attackers scan the internet for apps running library versions with public exploits. A vulnerable dependency is a vulnerability in your app, even though you did not write that code.
 - **Fix:** Upgrade lodash to 4.18.0 or later.
@@ -92,7 +92,7 @@
 **urllib3 1.23.0 has 12 known vulnerabilities**
 `requirements.txt` · SC-002 · [OWASP A03:2025](https://owasp.org/Top10/2025/A03_2025-Software_Supply_Chain_Failures/ "Software Supply Chain Failures") · [CWE-1395](https://cwe.mitre.org/data/definitions/1395.html "Dependency on Vulnerable Third-Party Component") · [CWE-295](https://cwe.mitre.org/data/definitions/295.html "Improper Certificate Validation") · [CWE-200](https://cwe.mitre.org/data/definitions/200.html "Exposure of Sensitive Information") · [CWE-409](https://cwe.mitre.org/data/definitions/409.html) · [SSDF PW.4](https://csrc.nist.gov/pubs/sp/800/218/final "Reuse Existing, Well-Secured Software When Feasible")
 
-> urllib3 1.23.0 (PyPI) is affected by CVE-2019-11324 (Improper Certificate Validation in urllib3); CVE-2023-43804 (\`Cookie\` HTTP header isn't stripped on cross-origin redirects); CVE-2025-66471 (urllib3 streaming API improperly handles highly compressed data); and 9 more.
+> urllib3 1.23.0 (PyPI) is affected by CVE-2019-11324 (Improper Certificate Validation in urllib3); CVE-2023-43804 (`Cookie` HTTP header isn't stripped on cross-origin redirects); CVE-2025-66471 (urllib3 streaming API improperly handles highly compressed data); and 9 more.
 
 - **Why it matters:** Attackers scan the internet for apps running library versions with public exploits. A vulnerable dependency is a vulnerability in your app, even though you did not write that code.
 - **Fix:** Upgrade urllib3 to 2.8.0 or later.
@@ -101,7 +101,7 @@
 **requests 2.19.0 has 5 known vulnerabilities**
 `requirements.txt:2` · SC-002 · [OWASP A03:2025](https://owasp.org/Top10/2025/A03_2025-Software_Supply_Chain_Failures/ "Software Supply Chain Failures") · [CWE-1395](https://cwe.mitre.org/data/definitions/1395.html "Dependency on Vulnerable Third-Party Component") · [CWE-522](https://cwe.mitre.org/data/definitions/522.html) · [CWE-200](https://cwe.mitre.org/data/definitions/200.html "Exposure of Sensitive Information") · [CWE-670](https://cwe.mitre.org/data/definitions/670.html) · [SSDF PW.4](https://csrc.nist.gov/pubs/sp/800/218/final "Reuse Existing, Well-Secured Software When Feasible")
 
-> requests 2.19.0 (PyPI) is affected by CVE-2018-18074 (Insufficiently Protected Credentials in Requests); CVE-2023-32681 (Unintended leak of Proxy-Authorization header in requests); CVE-2024-35195 (Requests \`Session\` object does not verify requests after making first request with verify=False); and 2 more.
+> requests 2.19.0 (PyPI) is affected by CVE-2018-18074 (Insufficiently Protected Credentials in Requests); CVE-2023-32681 (Unintended leak of Proxy-Authorization header in requests); CVE-2024-35195 (Requests `Session` object does not verify requests after making first request with verify=False); and 2 more.
 
 - **Why it matters:** Attackers scan the internet for apps running library versions with public exploits. A vulnerable dependency is a vulnerability in your app, even though you did not write that code.
 - **Fix:** Upgrade requests to 2.33.0 or later.
@@ -141,7 +141,15 @@
 - **Fix:** Use parameterised queries (placeholders like ? or %s with a separate argument list) or your ORM's query builder. Replace eval with a safe parser such as json.loads or ast.literal\_eval.
 
 <details>
-<summary><b>🟡 Medium (4)</b></summary>
+<summary><b>🟡 Medium (7)</b></summary>
+
+**No .gitignore file**
+repository-wide · SC-005 · [OWASP A02:2025](https://owasp.org/Top10/2025/A02_2025-Security_Misconfiguration/ "Security Misconfiguration") · [CWE-538](https://cwe.mitre.org/data/definitions/538.html "Sensitive Information in an Externally-Accessible File") · [SSDF PS.1](https://csrc.nist.gov/pubs/sp/800/218/final "Protect All Forms of Code from Unauthorized Access and Tampering")
+
+> The repository has no .gitignore, so nothing stops secret files from being committed by accident.
+
+- **Why it matters:** A single "git add ." can publish your local .env file or a private key. Ignoring these files up front makes that mistake much harder to make.
+- **Fix:** Create a .gitignore containing at least: .env, \*.pem, \*.key, credentials\*.
 
 **Cleartext http:// URL**
 `app.py:15` · SC-008 · [OWASP A04:2025](https://owasp.org/Top10/2025/A04_2025-Cryptographic_Failures/ "Cryptographic Failures") · [CWE-319](https://cwe.mitre.org/data/definitions/319.html "Cleartext Transmission of Sensitive Information") · [SSDF PW.5](https://csrc.nist.gov/pubs/sp/800/218/final "Create Source Code by Adhering to Secure Coding Practices")
@@ -159,6 +167,23 @@
 - **Why it matters:** Plain HTTP, or HTTPS without certificate checks, lets anyone on the same network (public Wi-Fi, a compromised router) read or change the data in transit, including passwords and tokens.
 - **Fix:** Use https:// URLs and leave certificate verification on (remove verify=False / rejectUnauthorized: false). For self-signed internal certificates, point the client at your CA bundle instead.
 
+**pygments 2.9.0 has 2 known vulnerabilities**
+`requirements-dev.txt` · SC-002 · [OWASP A03:2025](https://owasp.org/Top10/2025/A03_2025-Software_Supply_Chain_Failures/ "Software Supply Chain Failures") · [CWE-1395](https://cwe.mitre.org/data/definitions/1395.html "Dependency on Vulnerable Third-Party Component") · [CWE-434](https://cwe.mitre.org/data/definitions/434.html) · [CWE-1333](https://cwe.mitre.org/data/definitions/1333.html "Inefficient Regular Expression Complexity (ReDoS)") · [CWE-400](https://cwe.mitre.org/data/definitions/400.html "Uncontrolled Resource Consumption") · [SSDF PW.4](https://csrc.nist.gov/pubs/sp/800/218/final "Reuse Existing, Well-Secured Software When Feasible")
+
+> pygments 2.9.0 (PyPI) is affected by CVE-2022-40896 (Pygments vulnerable to ReDoS); CVE-2026-4539 (Pygments has Regular Expression Denial of Service (ReDoS) due to Inefficient Regex for GUID Matching).
+
+- **Why it matters:** Attackers scan the internet for apps running library versions with public exploits. A vulnerable dependency is a vulnerability in your app, even though you did not write that code.
+- **Fix:** Upgrade pygments to 2.20.0 or later.
+- **Learn more:** <https://osv.dev/vulnerability/PYSEC-2023-117>, <https://osv.dev/vulnerability/PYSEC-2026-2987>
+
+**Unpinned dependencies in requirements-dev.txt**
+`requirements-dev.txt:2` · SC-004 · [OWASP A03:2025](https://owasp.org/Top10/2025/A03_2025-Software_Supply_Chain_Failures/ "Software Supply Chain Failures") · [CWE-1357](https://cwe.mitre.org/data/definitions/1357.html "Reliance on Insufficiently Trustworthy Component") · [SSDF PW.4](https://csrc.nist.gov/pubs/sp/800/218/final "Reuse Existing, Well-Secured Software When Feasible")
+
+> 3 package(s) are not pinned to an exact version: pytest, black, flake8.
+
+- **Why it matters:** Without pinned versions, a build next week can silently pull in a newer package, including a compromised one, that nobody reviewed.
+- **Fix:** Pin every package to an exact version with == (for example requests==2.32.3), or generate the file with `pip-compile` / `uv pip compile`.
+
 **Cleartext http:// URL**
 `server.js:10` · SC-008 · [OWASP A04:2025](https://owasp.org/Top10/2025/A04_2025-Cryptographic_Failures/ "Cryptographic Failures") · [CWE-319](https://cwe.mitre.org/data/definitions/319.html "Cleartext Transmission of Sensitive Information") · [SSDF PW.5](https://csrc.nist.gov/pubs/sp/800/218/final "Create Source Code by Adhering to Secure Coding Practices")
 
@@ -170,10 +195,23 @@
 **TLS certificate verification disabled**
 `server.js:28` · SC-008 · [OWASP A04:2025](https://owasp.org/Top10/2025/A04_2025-Cryptographic_Failures/ "Cryptographic Failures") · [CWE-295](https://cwe.mitre.org/data/definitions/295.html "Improper Certificate Validation") · [SSDF PW.5](https://csrc.nist.gov/pubs/sp/800/218/final "Create Source Code by Adhering to Secure Coding Practices")
 
-> TLS certificate verification is turned off, so this connection would accept an attacker's fake certificate. Remove rejectUnauthorized: false (or pass your internal CA via the \`ca\` option).
+> TLS certificate verification is turned off, so this connection would accept an attacker's fake certificate. Remove rejectUnauthorized: false (or pass your internal CA via the `ca` option).
 
 - **Why it matters:** Plain HTTP, or HTTPS without certificate checks, lets anyone on the same network (public Wi-Fi, a compromised router) read or change the data in transit, including passwords and tokens.
 - **Fix:** Use https:// URLs and leave certificate verification on (remove verify=False / rejectUnauthorized: false). For self-signed internal certificates, point the client at your CA bundle instead.
+
+</details>
+
+<details>
+<summary><b>🔵 Low (1)</b></summary>
+
+**Missing SECURITY.md**
+repository-wide · SC-006 · [SSDF RV.1](https://csrc.nist.gov/pubs/sp/800/218/final "Identify and Confirm Vulnerabilities on an Ongoing Basis")
+
+> None of these files exist: SECURITY.md or .github/SECURITY.md or docs/SECURITY.md.
+
+- **Why it matters:** Without clear instructions, someone who finds a security bug may open a public issue, which tells attackers about it before you can fix it.
+- **Fix:** Add a SECURITY.md that names a private contact (an email address or GitHub's private vulnerability reporting) and which versions you support.
 
 </details>
 
@@ -183,7 +221,7 @@
 | Scanner | Version | Status | Time | Details |
 |---|---|---|---|---|
 | gitleaks | 8.30.1 | ✅ ran | 0.3s |  |
-| osv-scanner | 2.6.0 | ✅ ran | 2.4s |  |
+| osv-scanner | 2.6.0 | ✅ ran | 2.5s |  |
 | semgrep | 1.179.0 | ✅ ran | 2.7s |  |
 
 </details>

@@ -20,7 +20,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from safecode import __version__, mapping, report
+from safecode import __version__, checklist, github, mapping, report
 from safecode.rules import DEFAULT_CHECKLIST, ChecklistError, Rule, load_rules
 from safecode.scanners import gitleaks, osv, semgrep
 from safecode.scanners.base import ScanOutput
@@ -40,6 +40,7 @@ class Config:
     semgrep_configs: tuple[str, ...] = ()  # extra Semgrep configs on top of SAFECODE's own rules
     json_out: Path | None = None
     report_out: Path | None = None
+    repo: str = ""  # "owner/name"; defaults to $GITHUB_REPOSITORY inside Actions
     # repr=False keeps the token out of any accidental print(config) or traceback.
     github_token: str = field(default="", repr=False)
 
@@ -81,10 +82,10 @@ def run(config: Config, rules: dict[str, Rule]) -> ScanResult:
     for check_type, (tool_name, scanner) in SCANNERS.items():
         _run_scanner(config, rules, result, check_type, tool_name, scanner)
 
-    # Hygiene checks (lockfile, gitignore, file_exists, branch_protection) land in phase 3.
+    context = _hygiene_context(config)
     for rule in rules.values():
-        if rule.check_type not in SCANNERS:
-            result.checks.append(CheckResult(rule.id, CheckStatus.SKIPPED, "not implemented yet"))
+        if rule.check_type in checklist.HYGIENE_CHECKS:
+            _run_hygiene(rule, context, rules, result)
 
     # Present checks in checklist order regardless of which step produced them.
     order = {rule_id: index for index, rule_id in enumerate(rules)}
@@ -123,6 +124,31 @@ def _run_scanner(config: Config, rules: dict[str, Rule], result: ScanResult,
     for rule in enabled:
         count = sum(1 for f in result.findings if f.rule_id == rule.id)
         result.checks.append(_check_from_tool(rule.id, output.run, count))
+
+
+def _hygiene_context(config: Config) -> checklist.HygieneContext:
+    """Collect what the hygiene checks need: the target and, if known, the GitHub repo."""
+    payload_repo = github.event_payload().get("repository") or {}
+    return checklist.HygieneContext(
+        target=config.path,
+        github=github.client_from_env(config.repo, config.github_token),
+        default_branch=str(payload_repo.get("default_branch") or ""),
+    )
+
+
+def _run_hygiene(rule: Rule, context: checklist.HygieneContext, rules: dict[str, Rule], result: ScanResult) -> None:
+    """Run one hygiene check and record its outcome; a crash becomes an ERROR result."""
+    if not rule.enabled:
+        result.checks.append(CheckResult(rule.id, CheckStatus.SKIPPED, "disabled in checklist"))
+        return
+    try:
+        outcome = checklist.HYGIENE_CHECKS[rule.check_type](rule, context)
+    except Exception as exc:  # noqa: BLE001 - a broken check must not stop the others
+        traceback.print_exc(file=sys.stderr)
+        result.checks.append(CheckResult(rule.id, CheckStatus.ERROR, f"internal error: {type(exc).__name__}"))
+        return
+    result.add_findings([mapping.enrich(f, rules) for f in outcome.findings])
+    result.checks.append(CheckResult(rule.id, outcome.status, outcome.summary))
 
 
 def _check_from_tool(rule_id: str, run: ToolRun, count: int) -> CheckResult:
@@ -171,6 +197,8 @@ def parse_config(argv: list[str] | None = None) -> Config:
     )
     parser.add_argument("--json-out", type=Path, default=None, help="also write raw results as JSON here")
     parser.add_argument("--report-out", type=Path, default=None, help="also write the Markdown report here")
+    parser.add_argument("--repo", default="", help="GitHub owner/name for the branch-protection check "
+                                                   "(default: $GITHUB_REPOSITORY; token from $GITHUB_TOKEN)")
     parser.add_argument("--version", action="version", version=f"safecode {__version__}")
     args = parser.parse_args(argv)
 
@@ -199,6 +227,7 @@ def parse_config(argv: list[str] | None = None) -> Config:
         semgrep_configs=tuple(semgrep_configs),
         json_out=args.json_out,
         report_out=args.report_out,
+        repo=args.repo,
         github_token=_input("github-token") or os.environ.get("GITHUB_TOKEN", ""),
     )
 

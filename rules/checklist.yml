@@ -16,9 +16,10 @@
 #                     semgrep           code patterns; findings are linked to this rule
 #                                       by `metadata.safecode-rule: <id>` in rules/semgrep/
 #                     lockfile          dependency lockfiles present and versions pinned
-#                     gitignore         .gitignore excludes the listed patterns
-#                     file_exists       any of the listed paths exists
-#                     branch_protection default branch is protected (needs a GitHub token)
+#                     gitignore         .gitignore excludes `patterns`; no committed file matches `tracked`
+#                     file_exists       any of `paths` exists (case-insensitive)
+#                     branch_protection default branch is protected (GitHub API; skipped
+#                                       when the repository isn't known)
 #   check.*         Extra settings for that check type (see examples below).
 #   mapping         Standard IDs this rule maps to. Supported keys:
 #                     owasp      OWASP Top 10 2025, e.g. "A05:2025"
@@ -123,7 +124,11 @@ rules:
     severity: medium
     check:
       type: gitignore
+      # .gitignore must cover a root-level file matching each of these:
       patterns: [".env", "*.pem", "*.key", "credentials*"]
+      # A *committed* file whose name matches one of these is reported:
+      tracked: [".env", ".env.local", ".env.production", "*.pem", "*.key", "*.p12", "*.pfx",
+                "id_rsa", "id_dsa", "id_ecdsa", "id_ed25519", ".npmrc", ".pypirc", ".netrc"]
     mapping:
       cwe: [CWE-538]
       owasp: ["A02:2025"]

@@ -83,9 +83,22 @@ def test_disabled_rule_is_skipped_and_its_findings_dropped(monkeypatch, config, 
     })
     result = main.run(config, rules)
     assert statuses(result)["SC-003"] is CheckStatus.SKIPPED
-    assert [f.rule_id for f in result.findings] == ["SC-008"]
+    assert [f.rule_id for f in result.findings if f.source == "fake"] == ["SC-008"]
 
 
 def test_checks_are_in_checklist_order(monkeypatch, config, rules):
     monkeypatch.setattr(main, "SCANNERS", {"semgrep": ("semgrep", ok("semgrep"))})
-    assert [c.rule_id for c in main.run(config, rules).checks] == list(rules)
+    ids = [c.rule_id for c in main.run(config, rules).checks]
+    assert ids == [rule_id for rule_id in rules if rule_id in ids]
+    assert {"SC-003", "SC-004", "SC-007", "SC-008"} <= set(ids)  # scanner and hygiene checks interleaved
+
+
+def test_hygiene_checks_run_and_crashes_are_contained(monkeypatch, config, rules):
+    monkeypatch.setattr(main, "SCANNERS", {})
+    def broken(rule, ctx):
+        raise ValueError("bug")
+    monkeypatch.setitem(main.checklist.HYGIENE_CHECKS, "file_exists", broken)
+    result = main.run(config, rules)
+    assert statuses(result)["SC-006"] is CheckStatus.ERROR
+    assert statuses(result)["SC-005"] is CheckStatus.FAILED  # empty tmp dir has no .gitignore
+    assert statuses(result)["SC-007"] is CheckStatus.SKIPPED  # no GitHub repository known

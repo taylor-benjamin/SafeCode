@@ -111,11 +111,11 @@ def _finding_block(finding: Finding, rules: dict[str, Rule]) -> str:
     rule_label = "extra Semgrep rule" if finding.rule_id == EXTRA_RULE_ID else finding.rule_id
     meta = " · ".join([where, rule_label, *(_link(ref) for ref in finding.standards)])
 
-    lines = [f"**{_text(finding.title)}**", meta, "", f"> {_text(finding.message)}", ""]
+    lines = [f"**{_text(finding.title)}**", meta, "", f"> {_prose(finding.message)}", ""]
     if finding.why_it_matters:
-        lines.append(f"- **Why it matters:** {_text(finding.why_it_matters)}")
+        lines.append(f"- **Why it matters:** {_prose(finding.why_it_matters)}")
     if finding.fix:
-        lines.append(f"- **Fix:** {_text(finding.fix)}")
+        lines.append(f"- **Fix:** {_prose(finding.fix)}")
     refs = [r for r in finding.references if _is_safe_url(r)]
     if refs:
         lines.append("- **Learn more:** " + ", ".join(f"<{r}>" for r in refs))
@@ -152,6 +152,27 @@ _MD_SPECIAL = re.compile(r"([\\`*_{}\[\]<>|#~])")
 def _text(value: str) -> str:
     """Untrusted text, flattened to one line and with Markdown syntax escaped."""
     return _MD_SPECIAL.sub(r"\\\1", " ".join(str(value).split()))
+
+
+def _prose(value: str) -> str:
+    """Untrusted text that may use `backticks` for inline code.
+
+    Code spans are kept (they can't carry links or HTML) and everything
+    between them is escaped like _text(). An unmatched trailing backtick is dropped.
+    """
+    parts = str(value).split("`")
+    out = []
+    for index, part in enumerate(parts):
+        if index % 2 == 1 and index < len(parts) - 1 and part.strip():
+            out.append(_code(part))
+        elif part.strip():
+            # _text() trims the edges; keep one space where the original had whitespace.
+            lead = " " if part[0].isspace() else ""
+            trail = " " if part[-1].isspace() else ""
+            out.append(f"{lead}{_text(part)}{trail}")
+        elif part:
+            out.append(" ")
+    return re.sub(r" {2,}", " ", "".join(out)).strip()
 
 
 def _code(value: str) -> str:

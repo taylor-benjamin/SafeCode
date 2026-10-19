@@ -9,14 +9,6 @@ from safecode.scanners.base import run_tool
 from safecode.schema import ToolStatus
 
 
-@pytest.fixture(autouse=True)
-def clean_env(monkeypatch):
-    """Ensure stray INPUT_* variables from the developer's shell don't leak in."""
-    for name in ("INPUT_FAIL-THRESHOLD", "INPUT_COMMENT-ON-PR", "INPUT_SCAN-PATH", "INPUT_SEMGREP-CONFIG",
-                 "INPUT_GITHUB-TOKEN", "GITHUB_TOKEN", "GITHUB_WORKSPACE"):
-        monkeypatch.delenv(name, raising=False)
-
-
 class TestConfig:
     def test_reads_action_inputs_from_env(self, monkeypatch, tmp_path):
         monkeypatch.setenv("GITHUB_WORKSPACE", str(tmp_path))

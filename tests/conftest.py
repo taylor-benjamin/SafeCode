@@ -24,6 +24,21 @@ for directory in _LOCAL_TOOL_DIRS:
         os.environ["PATH"] = f"{directory}{os.pathsep}{os.environ['PATH']}"
 
 
+_ACTIONS_ENV = (
+    "GITHUB_REPOSITORY", "GITHUB_EVENT_PATH", "GITHUB_STEP_SUMMARY", "GITHUB_OUTPUT", "GITHUB_TOKEN",
+    "GITHUB_WORKSPACE", "GITHUB_API_URL", "INPUT_FAIL-THRESHOLD", "INPUT_COMMENT-ON-PR", "INPUT_SCAN-PATH",
+    "INPUT_SEMGREP-CONFIG", "INPUT_GITHUB-TOKEN",
+)
+
+
+@pytest.fixture(autouse=True)
+def isolated_from_actions_env(monkeypatch):
+    """Tests run inside GitHub Actions in CI; make sure they never see (or call out with)
+    the real workflow's repository, token, or summary file."""
+    for name in _ACTIONS_ENV:
+        monkeypatch.delenv(name, raising=False)
+
+
 def requires_tool(name: str):
     """Skip a test when an external scanner binary isn't installed."""
     return pytest.mark.skipif(shutil.which(name) is None, reason=f"{name} not installed")

@@ -7,6 +7,8 @@
 | `app.py` | hardcoded API key, SQL injection, `eval`, `http://` URL, `verify=False` | SC-001, SC-003, SC-008 |
 | `server.js` | SQL injection, `eval`, `http://` URL, `rejectUnauthorized: false` | SC-003, SC-008 |
 | `requirements.txt`, `package-lock.json` | old dependency versions with known CVEs | SC-002 |
+| `requirements-dev.txt` | dependencies without exact version pins | SC-004 |
+| *(missing)* `.gitignore`, `SECURITY.md` | no protection against committing secrets; no way to report vulnerabilities | SC-005, SC-006 |
 
 The API key in `app.py` is a random string that is not valid for any service. It looks like a credential so that Gitleaks flags it.
 
