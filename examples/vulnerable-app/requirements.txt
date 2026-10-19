@@ -1,0 +1,4 @@
+# SC-002: deliberately old versions with published security advisories.
+requests==2.19.0
+PyYAML==5.3
+Jinja2==2.10

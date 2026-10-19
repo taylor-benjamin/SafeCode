@@ -134,6 +134,7 @@ class Finding:
     why_it_matters: str = ""
     fix: str = ""
     evidence: str = ""  # short, already-redacted context
+    references: tuple[str, ...] = ()  # URLs for further reading, e.g. the advisory page
 
     @property
     def fingerprint(self) -> str:

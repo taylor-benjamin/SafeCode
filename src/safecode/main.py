@@ -15,13 +15,16 @@ import argparse
 import json
 import os
 import sys
+import traceback
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from safecode import __version__
+from safecode import __version__, mapping, report
 from safecode.rules import DEFAULT_CHECKLIST, ChecklistError, Rule, load_rules
-from safecode.schema import ScanResult
+from safecode.scanners import gitleaks, osv, semgrep
+from safecode.scanners.base import ScanOutput
+from safecode.schema import CheckResult, CheckStatus, ScanResult, ToolRun, ToolStatus
 
 FAIL_THRESHOLDS = ("off", "A", "B", "C", "D")
 
@@ -36,26 +39,101 @@ class Config:
     comment_on_pr: bool = True
     semgrep_configs: tuple[str, ...] = ()  # extra Semgrep configs on top of SAFECODE's own rules
     json_out: Path | None = None
+    report_out: Path | None = None
     # repr=False keeps the token out of any accidental print(config) or traceback.
     github_token: str = field(default="", repr=False)
 
 
-# A step takes the run's config and rules and adds its findings, check
-# results, and tool records to the shared ScanResult. Steps must not raise:
-# each one catches its own failures and records them on the result instead.
-Step = Callable[[Config, dict[str, Rule], ScanResult], None]
+# --- Scan steps ----------------------------------------------------------------
+#
+# Each scanner adapter is called with the enabled checklist rules of its
+# check type and returns a ScanOutput. _run_scanner() does the shared work:
+# catching crashes, enriching findings with standards, and turning the tool's
+# status into a pass/fail/skipped/error result for each rule.
 
-# Scanner and hygiene steps are registered here as they are implemented
-# (phase 2: Gitleaks, OSV-Scanner, Semgrep; phase 3: hygiene checks).
-STEPS: list[Step] = []
+Scanner = Callable[[Config, list[Rule], dict[str, Rule]], ScanOutput]
+
+
+def _gitleaks(config: Config, enabled: list[Rule], rules: dict[str, Rule]) -> ScanOutput:
+    return gitleaks.scan(config.path, enabled[0].id, enabled[0].severity)
+
+
+def _osv(config: Config, enabled: list[Rule], rules: dict[str, Rule]) -> ScanOutput:
+    return osv.scan(config.path, enabled[0].id, enabled[0].severity)
+
+
+def _semgrep(config: Config, enabled: list[Rule], rules: dict[str, Rule]) -> ScanOutput:
+    return semgrep.scan(config.path, mapping.cwe_to_rule(rules), config.semgrep_configs)
+
+
+# check type -> (tool name, adapter). One tool run serves every rule of that type.
+SCANNERS: dict[str, tuple[str, Scanner]] = {
+    "gitleaks": (gitleaks.TOOL, _gitleaks),
+    "osv": (osv.TOOL, _osv),
+    "semgrep": (semgrep.TOOL, _semgrep),
+}
 
 
 def run(config: Config, rules: dict[str, Rule]) -> ScanResult:
-    """Execute every step against the target and return the merged result."""
+    """Execute every check against the target and return the merged result."""
     result = ScanResult(target=str(config.path))
-    for step in STEPS:
-        step(config, rules, result)
+
+    for check_type, (tool_name, scanner) in SCANNERS.items():
+        _run_scanner(config, rules, result, check_type, tool_name, scanner)
+
+    # Hygiene checks (lockfile, gitignore, file_exists, branch_protection) land in phase 3.
+    for rule in rules.values():
+        if rule.check_type not in SCANNERS:
+            result.checks.append(CheckResult(rule.id, CheckStatus.SKIPPED, "not implemented yet"))
+
+    # Present checks in checklist order regardless of which step produced them.
+    order = {rule_id: index for index, rule_id in enumerate(rules)}
+    result.checks.sort(key=lambda c: order.get(c.rule_id, len(order)))
     return result
+
+
+def _run_scanner(config: Config, rules: dict[str, Rule], result: ScanResult,
+                 check_type: str, tool_name: str, scanner: Scanner) -> None:
+    """Run one scanner for all rules of check_type and record everything on result."""
+    of_type = [rule for rule in rules.values() if rule.check_type == check_type]
+    enabled = [rule for rule in of_type if rule.enabled]
+    for rule in of_type:
+        if not rule.enabled:
+            result.checks.append(CheckResult(rule.id, CheckStatus.SKIPPED, "disabled in checklist"))
+    if not enabled:
+        return
+
+    try:
+        output = scanner(config, enabled, rules)
+    except Exception as exc:  # noqa: BLE001 - one broken adapter must not stop the other scanners
+        traceback.print_exc(file=sys.stderr)
+        output = ScanOutput(ToolRun(tool_name, ToolStatus.ERROR, detail=f"internal error: {type(exc).__name__}"))
+
+    result.tools.append(output.run)
+    result.notes.extend(output.notes)
+
+    # Keep findings for enabled rules, plus "extra" findings that belong to no rule.
+    findings = [
+        mapping.enrich(f, rules)
+        for f in output.findings
+        if (f.rule_id in rules and rules[f.rule_id].enabled) or f.rule_id not in rules
+    ]
+    result.add_findings(findings)
+
+    for rule in enabled:
+        count = sum(1 for f in result.findings if f.rule_id == rule.id)
+        result.checks.append(_check_from_tool(rule.id, output.run, count))
+
+
+def _check_from_tool(rule_id: str, run: ToolRun, count: int) -> CheckResult:
+    """Translate a tool's outcome into the rule's pass/fail status."""
+    if run.status is ToolStatus.OK:
+        if count:
+            return CheckResult(rule_id, CheckStatus.FAILED, f"{count} finding{'s' if count != 1 else ''}")
+        return CheckResult(rule_id, CheckStatus.PASSED, run.detail or "no issues found")
+    if run.status in (ToolStatus.NOT_INSTALLED, ToolStatus.SKIPPED):
+        return CheckResult(rule_id, CheckStatus.SKIPPED, f"not checked: {run.detail}")
+    return CheckResult(rule_id, CheckStatus.ERROR, f"{run.name} failed: {run.detail}")
 
 
 def _input(name: str, default: str = "") -> str:
@@ -92,6 +170,7 @@ def parse_config(argv: list[str] | None = None) -> Config:
         help="extra Semgrep config (repeatable), e.g. p/python",
     )
     parser.add_argument("--json-out", type=Path, default=None, help="also write raw results as JSON here")
+    parser.add_argument("--report-out", type=Path, default=None, help="also write the Markdown report here")
     parser.add_argument("--version", action="version", version=f"safecode {__version__}")
     args = parser.parse_args(argv)
 
@@ -119,6 +198,7 @@ def parse_config(argv: list[str] | None = None) -> Config:
         comment_on_pr=_parse_bool(args.comment_on_pr, "comment-on-pr"),
         semgrep_configs=tuple(semgrep_configs),
         json_out=args.json_out,
+        report_out=args.report_out,
         github_token=_input("github-token") or os.environ.get("GITHUB_TOKEN", ""),
     )
 
@@ -138,16 +218,29 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     result = run(config, rules)
+    markdown = report.render(result, rules, repo_name=os.environ.get("GITHUB_REPOSITORY", config.path.name))
 
     if config.json_out:
         config.json_out.write_text(json.dumps(result.to_dict(), indent=2), encoding="utf-8")
+    if config.report_out:
+        config.report_out.write_text(markdown, encoding="utf-8")
 
-    # Placeholder output until report.py lands in phase 2.
-    counts = ", ".join(f"{sev}: {n}" for sev, n in result.counts_by_severity().items())
-    print(f"SAFECODE {__version__} scanned {config.path}")
-    print(f"{len(rules)} checklist rules loaded; {len(STEPS)} scan steps registered")
-    print(f"Findings by severity: {counts}")
+    # In GitHub Actions, the job summary file shows on the workflow run page.
+    summary_file = os.environ.get("GITHUB_STEP_SUMMARY")
+    if summary_file:
+        with open(summary_file, "a", encoding="utf-8") as handle:
+            handle.write(markdown)
+
+    _print(markdown)
     return 0
+
+
+def _print(text: str) -> None:
+    """Print to stdout, tolerating consoles that can't show emoji (e.g. legacy Windows code pages)."""
+    try:
+        print(text)
+    except UnicodeEncodeError:
+        print(text.encode(sys.stdout.encoding or "ascii", errors="replace").decode(sys.stdout.encoding or "ascii"))
 
 
 if __name__ == "__main__":

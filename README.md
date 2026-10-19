@@ -11,6 +11,9 @@ python -m venv .venv
 . .venv/bin/activate          # Windows: .venv\Scripts\activate
 pip install -r requirements-dev.txt
 pip install -e . --no-deps
+scripts/install-dev-tools.sh  # optional: pinned scanners into .tools/ for integration tests
 pytest
-python -m safecode --path .
+python -m safecode --path examples/vulnerable-app
 ```
+
+Integration tests run the real scanners and are skipped automatically if a scanner isn't installed. See [examples/sample-report.md](examples/sample-report.md) for what a report looks like.

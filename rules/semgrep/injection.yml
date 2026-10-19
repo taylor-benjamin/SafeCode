@@ -1,0 +1,105 @@
+# SAFECODE Semgrep rules for checklist rule SC-003 (SQL injection, unsafe eval).
+#
+# Every rule carries `metadata.safecode-rule`, which is how SAFECODE links a
+# Semgrep match back to its checklist entry. To add your own rule, copy one of
+# these, change the pattern, and keep that metadata key.
+
+rules:
+  - id: safecode.python.sql-built-from-strings
+    languages: [python]
+    severity: ERROR
+    message: >-
+      This SQL query is built by inserting values directly into the query
+      text. Pass values separately, e.g. cursor.execute("... WHERE id = ?", (user_id,)).
+    metadata:
+      safecode-rule: SC-003
+      safecode-title: "SQL query built from strings"
+      cwe: [CWE-89]
+    patterns:
+      - pattern-either:
+          - pattern: $DB.$EXEC(f"...", ...)
+          - pattern: $DB.$EXEC("..." % $ARGS, ...)
+          - pattern: $DB.$EXEC("..." + $X, ...)
+          - pattern: $DB.$EXEC("...".format(...), ...)
+          - pattern: |
+              $Q = f"..."
+              ...
+              $DB.$EXEC($Q, ...)
+          - pattern: |
+              $Q = "..." % $ARGS
+              ...
+              $DB.$EXEC($Q, ...)
+          - pattern: |
+              $Q = "..." + $X
+              ...
+              $DB.$EXEC($Q, ...)
+          - pattern: |
+              $Q = "...".format(...)
+              ...
+              $DB.$EXEC($Q, ...)
+      - metavariable-regex:
+          metavariable: $EXEC
+          regex: ^(execute|executemany|executescript|raw|extra)$
+
+  - id: safecode.python.eval-of-dynamic-input
+    languages: [python]
+    severity: ERROR
+    message: >-
+      eval()/exec() runs whatever text it is given as Python code. If any part
+      of that text comes from a user, they can run code on your server. Use
+      json.loads or ast.literal_eval to parse data instead.
+    metadata:
+      safecode-rule: SC-003
+      safecode-title: "Code evaluated from dynamic input"
+      cwe: [CWE-95]
+    patterns:
+      - pattern-either:
+          - pattern: eval($X, ...)
+          - pattern: exec($X, ...)
+      - pattern-not: eval("...", ...)
+      - pattern-not: exec("...", ...)
+
+  - id: safecode.javascript.sql-built-from-strings
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: >-
+      This SQL query is built by inserting values directly into the query
+      text. Use placeholders instead, e.g. db.query("... WHERE id = ?", [id]).
+    metadata:
+      safecode-rule: SC-003
+      safecode-title: "SQL query built from strings"
+      cwe: [CWE-89]
+    patterns:
+      - pattern-either:
+          - pattern: $DB.$QUERY(`...${$X}...`, ...)
+          - pattern: $DB.$QUERY("..." + $X, ...)
+          - pattern: $DB.$QUERY($X + "...", ...)
+          - pattern: |
+              $Q = `...${$X}...`;
+              ...
+              $DB.$QUERY($Q, ...);
+          - pattern: |
+              $Q = "..." + $X;
+              ...
+              $DB.$QUERY($Q, ...);
+      - metavariable-regex:
+          metavariable: $QUERY
+          regex: ^(query|execute|raw|unsafe|\$queryRawUnsafe|\$executeRawUnsafe)$
+
+  - id: safecode.javascript.eval-of-dynamic-input
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: >-
+      eval()/new Function() runs whatever text it is given as JavaScript. If
+      any part of it comes from a request, an attacker can run code in your
+      app. Parse data with JSON.parse instead.
+    metadata:
+      safecode-rule: SC-003
+      safecode-title: "Code evaluated from dynamic input"
+      cwe: [CWE-95]
+    patterns:
+      - pattern-either:
+          - pattern: eval($X)
+          - pattern: new Function(..., $X)
+      - pattern-not: eval("...")
+      - pattern-not: new Function(..., "...")

@@ -1,0 +1,11 @@
+{
+  "name": "safecode-vulnerable-demo",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Intentionally vulnerable demo for SAFECODE. Do not deploy.",
+  "dependencies": {
+    "lodash": "4.17.15",
+    "minimist": "1.2.0",
+    "mysql": "2.18.1"
+  }
+}

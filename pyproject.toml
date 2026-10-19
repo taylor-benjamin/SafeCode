@@ -24,3 +24,4 @@ where = ["src"]
 pythonpath = ["src"]
 testpaths = ["tests"]
 addopts = "-ra"
+markers = ["integration: runs real scanner binaries (skipped automatically when they are not installed)"]

@@ -1,0 +1,85 @@
+# SAFECODE Semgrep rules for checklist rule SC-008 (cleartext HTTP, disabled TLS verification).
+#
+# The http:// rules only flag string literals that are *used* (passed to a
+# call, assigned, or stored in a dict/object), not ones in comments or
+# docstrings, and they ignore local and documentation hosts. This keeps the
+# rule quiet on XML namespaces, license headers, and localhost dev servers.
+
+rules:
+  - id: safecode.python.cleartext-http-url
+    languages: [python]
+    severity: WARNING
+    message: >-
+      This URL uses plain http://, so anything sent to it (including tokens)
+      can be read or changed on the network. Use https:// instead.
+    metadata:
+      safecode-rule: SC-008
+      safecode-title: "Cleartext http:// URL"
+      cwe: [CWE-319]
+    options:
+      # Only flag the literal itself, not every place a URL constant is later used.
+      constant_propagation: false
+    patterns:
+      - pattern-either:
+          - pattern: $F(..., "$URL", ...)
+          - pattern: $F(..., $K="$URL", ...)
+          - pattern: $V = "$URL"
+          - pattern: '{..., $K: "$URL", ...}'
+      - metavariable-regex:
+          metavariable: $URL
+          regex: ^http://(?!(localhost|127\.\d+\.\d+\.\d+|0\.0\.0\.0|\[::1\]|[^/:]*\.(local|localhost|test|example|invalid)|([^/:]*\.)?example\.(com|net|org)|schemas\.|www\.w3\.org|xmlns\.|purl\.org)([:/]|$))
+
+  - id: safecode.python.tls-verification-disabled
+    languages: [python]
+    severity: WARNING
+    message: >-
+      TLS certificate verification is turned off, so this connection would
+      accept an attacker's fake certificate. Remove verify=False (or point
+      verify at your CA bundle for internal certificates).
+    metadata:
+      safecode-rule: SC-008
+      safecode-title: "TLS certificate verification disabled"
+      cwe: [CWE-295]
+    pattern-either:
+      - pattern: $LIB.$METHOD(..., verify=False, ...)
+      - pattern: ssl._create_unverified_context(...)
+      - pattern: $CTX.check_hostname = False
+      - pattern: $CTX.verify_mode = ssl.CERT_NONE
+
+  - id: safecode.javascript.cleartext-http-url
+    languages: [javascript, typescript]
+    severity: WARNING
+    message: >-
+      This URL uses plain http://, so anything sent to it (including tokens)
+      can be read or changed on the network. Use https:// instead.
+    metadata:
+      safecode-rule: SC-008
+      safecode-title: "Cleartext http:// URL"
+      cwe: [CWE-319]
+    options:
+      # Only flag the literal itself, not every place a URL constant is later used.
+      constant_propagation: false
+    patterns:
+      - pattern-either:
+          - pattern: $F(..., "$URL", ...)
+          - pattern: $V = "$URL"  # also matches var/let/const declarations
+          - pattern: '{..., $K: "$URL", ...}'
+      - metavariable-regex:
+          metavariable: $URL
+          regex: ^http://(?!(localhost|127\.\d+\.\d+\.\d+|0\.0\.0\.0|\[::1\]|[^/:]*\.(local|localhost|test|example|invalid)|([^/:]*\.)?example\.(com|net|org)|schemas\.|www\.w3\.org|xmlns\.|purl\.org)([:/]|$))
+
+  - id: safecode.javascript.tls-verification-disabled
+    languages: [javascript, typescript]
+    severity: WARNING
+    message: >-
+      TLS certificate verification is turned off, so this connection would
+      accept an attacker's fake certificate. Remove rejectUnauthorized: false
+      (or pass your internal CA via the `ca` option).
+    metadata:
+      safecode-rule: SC-008
+      safecode-title: "TLS certificate verification disabled"
+      cwe: [CWE-295]
+    pattern-either:
+      - pattern: '{..., rejectUnauthorized: false, ...}'
+      - pattern: process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0"
+      - pattern: process.env["NODE_TLS_REJECT_UNAUTHORIZED"] = "0"
