@@ -49,6 +49,8 @@ def scan(target: Path, rule_id: str, severity: Severity) -> ScanOutput:
             "--exit-code", "0",  # "leaks found" is not an error for us
             "--report-format", "json",
             "--report-path", str(report_path),
+            # Honour the repo's own .gitleaksignore (known false positives) at its root.
+            "--gitleaks-ignore-path", str(root),
             str(root),
         ]
         output = run_tool(TOOL, args, cwd=target)
@@ -60,7 +62,8 @@ def scan(target: Path, rule_id: str, severity: Severity) -> ScanOutput:
             raw = report_path.read_text(encoding="utf-8").strip()
             data = json.loads(raw) if raw else []
         except (OSError, ValueError):
-            return ScanOutput(replace(run, status=ToolStatus.ERROR, detail="could not read Gitleaks report"), notes=notes)
+            failed = replace(run, status=ToolStatus.ERROR, detail="could not read Gitleaks report")
+            return ScanOutput(failed, notes=notes)
 
     return ScanOutput(run, parse_report(data, root, rule_id, severity), notes)
 

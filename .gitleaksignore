@@ -1,0 +1,8 @@
+# Gitleaks findings that are known false positives (format: commit:file:rule:line).
+# Gitleaks reads this file automatically, so SAFECODE honours it too.
+#
+# A fake AWS-style key ("AKIA" + the alphabet) used in a doctest and a unit test
+# in the first commit. Both were replaced in later commits; this entry covers
+# the copy that remains in git history.
+9b51c2522beb6598110c76864c0a1e9c06af77c6:src/safecode/redaction.py:aws-access-token:23
+9b51c2522beb6598110c76864c0a1e9c06af77c6:tests/test_schema.py:aws-access-token:106

@@ -22,7 +22,6 @@ import tomllib
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
 from urllib.parse import quote
 
 from safecode.github import NETWORK_ERROR, GitHubClient
@@ -357,7 +356,9 @@ def check_branch_protection(rule: Rule, ctx: HygieneContext) -> CheckOutcome:
         return CheckOutcome(CheckStatus.SKIPPED, f"not checked: couldn't read branch {branch} ({_describe(status)})")
 
     status, rules = gh.get(f"/repos/{gh.repo}/rules/branches/{quote(branch, safe='')}")
-    rule_types = {r.get("type") for r in rules if isinstance(r, dict)} if status == 200 and isinstance(rules, list) else set()
+    rule_types: set[str] = set()
+    if status == 200 and isinstance(rules, list):
+        rule_types = {r.get("type") for r in rules if isinstance(r, dict)}
 
     if info.get("protected") or rule_types & PROTECTIVE_RULES:
         detail = " (pull requests required)" if "pull_request" in rule_types else ""

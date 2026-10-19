@@ -36,6 +36,10 @@ class GitHubClient:
 
     def request(self, method: str, path: str, body: dict[str, Any] | None = None) -> tuple[int, Any]:
         """Send one API request. Returns (HTTP status, parsed JSON body or None)."""
+        url = f"{self.api_url.rstrip('/')}{path}"
+        if not url.startswith("https://"):
+            # Never send the token over plain HTTP or to file:/custom schemes.
+            return NETWORK_ERROR, None
         headers = {
             "Accept": "application/vnd.github+json",
             "X-GitHub-Api-Version": "2022-11-28",
@@ -48,7 +52,7 @@ class GitHubClient:
             data = json.dumps(body).encode("utf-8")
             headers["Content-Type"] = "application/json"
 
-        req = urllib.request.Request(f"{self.api_url.rstrip('/')}{path}", data=data, headers=headers, method=method)
+        req = urllib.request.Request(url, data=data, headers=headers, method=method)  # noqa: S310 - https enforced above
         try:
             with self.opener(req, timeout=TIMEOUT_S) as response:
                 return response.status, _json_or_none(response.read())

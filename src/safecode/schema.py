@@ -180,6 +180,7 @@ class ScanResult:
     checks: list[CheckResult] = field(default_factory=list)
     tools: list[ToolRun] = field(default_factory=list)
     notes: list[str] = field(default_factory=list)  # run-level caveats, e.g. "shallow clone"
+    excluded_count: int = 0  # findings dropped because they were under an exclude-paths entry
 
     def add_findings(self, new: list[Finding]) -> None:
         """Append findings, dropping exact duplicates by fingerprint."""
@@ -209,6 +210,6 @@ class ScanResult:
     def to_dict(self) -> dict[str, Any]:
         """A JSON-serialisable view of the whole result."""
         data = asdict(self)
-        for raw, finding in zip(data["findings"], self.findings):
+        for raw, finding in zip(data["findings"], self.findings, strict=True):
             raw["fingerprint"] = finding.fingerprint
         return data

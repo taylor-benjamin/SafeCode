@@ -29,9 +29,22 @@ inputs:
     description: Directory to scan, relative to the repository root.
     required: false
     default: "."
+  exclude-paths:
+    description: >-
+      Ignore findings under these paths (comma- or newline-separated). A directory
+      name ("examples/") excludes everything in it; other entries are globs ("*.min.js").
+    required: false
+    default: ""
+  checklist:
+    description: >-
+      Path (relative to the repository root) to your own checklist YAML, to change
+      wording, severities, or disable rules. Defaults to SAFECODE's built-in checklist.
+    required: false
+    default: ""
   semgrep-config:
     description: >-
-      Optional extra Semgrep configs (comma- or newline-separated), e.g. "p/python".
+      Optional extra Semgrep configs (comma- or newline-separated): registry packs
+      like "p/python" or a folder of your own rules like ".safecode/semgrep".
       SAFECODE's own rules always run.
     required: false
     default: ""

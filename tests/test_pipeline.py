@@ -71,7 +71,9 @@ def test_crashing_adapter_is_reported_and_others_still_run(monkeypatch, config, 
 
 
 def test_missing_tool_marks_rule_skipped(monkeypatch, config, rules):
-    missing = lambda config, enabled, rules: ScanOutput(ToolRun("gitleaks", ToolStatus.NOT_INSTALLED, detail="x"))
+    def missing(config, enabled, rules):
+        return ScanOutput(ToolRun("gitleaks", ToolStatus.NOT_INSTALLED, detail="x"))
+
     monkeypatch.setattr(main, "SCANNERS", {"gitleaks": ("gitleaks", missing)})
     assert statuses(main.run(config, rules))["SC-001"] is CheckStatus.SKIPPED
 
@@ -102,3 +104,27 @@ def test_hygiene_checks_run_and_crashes_are_contained(monkeypatch, config, rules
     assert statuses(result)["SC-006"] is CheckStatus.ERROR
     assert statuses(result)["SC-005"] is CheckStatus.FAILED  # empty tmp dir has no .gitignore
     assert statuses(result)["SC-007"] is CheckStatus.SKIPPED  # no GitHub repository known
+
+
+@pytest.mark.parametrize(("path", "excluded"), [
+    ("examples/app.py", True), ("examples", True), ("examplesX/app.py", False),
+    ("src/vendor.min.js", True), ("src/app.js", False),
+])
+def test_is_excluded(path, excluded):
+    assert main.is_excluded(path, ("./examples/**", "*.min.js")) is excluded
+
+
+def test_excluded_findings_are_dropped_and_checks_restated(monkeypatch, tmp_path, rules):
+    (tmp_path / "examples").mkdir()
+    (tmp_path / "examples" / "requirements.txt").write_text("requests\n", encoding="utf-8")
+    config = main.Config(path=tmp_path, exclude_paths=("examples/",))
+    monkeypatch.setattr(main, "SCANNERS", {
+        "gitleaks": ("gitleaks", ok("gitleaks", [Finding(rule_id="SC-001", title="t", severity=Severity.CRITICAL,
+                                                         source="fake", message="m",
+                                                         location=Location("examples/app.py", 3))])),
+    })
+    result = main.run(config, rules)
+    assert statuses(result)["SC-001"] is CheckStatus.PASSED
+    assert next(c for c in result.checks if c.rule_id == "SC-004").summary == "no issues outside excluded paths"
+    assert result.excluded_count == 2
+    assert "2 finding(s) in excluded paths (examples/) were ignored." in result.notes

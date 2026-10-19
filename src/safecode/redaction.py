@@ -20,8 +20,8 @@ _MIN_LENGTH_FOR_PREFIX = 16
 def redact(secret: str) -> str:
     """Return a safe placeholder for a secret value.
 
-    >>> redact("AKIAABCDEFGHIJKLMNOP")
-    'AKIA…[REDACTED]'
+    >>> redact("demoABCDEFGHIJKLMNOP")
+    'demo…[REDACTED]'
     >>> redact("hunter2")
     '[REDACTED]'
     """

@@ -72,3 +72,10 @@ def test_client_from_env(monkeypatch):
     monkeypatch.setenv("GITHUB_API_URL", "https://ghe.example.com/api/v3")
     client = client_from_env(token=TOKEN)
     assert (client.repo, client.api_url, client.token) == ("octo/app", "https://ghe.example.com/api/v3", TOKEN)
+
+
+def test_refuses_non_https_api_url():
+    opener, seen = recording_opener(body={})
+    client = GitHubClient("octo/app", token=TOKEN, api_url="http://ghe.internal/api/v3", opener=opener)
+    assert client.get("/x") == (NETWORK_ERROR, None)
+    assert seen == []  # the token was never sent anywhere

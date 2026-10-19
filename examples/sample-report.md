@@ -243,8 +243,8 @@ repository-wide · SC-006 · [SSDF RV.1](https://csrc.nist.gov/pubs/sp/800/218/f
 | Scanner | Version | Status | Time | Details |
 |---|---|---|---|---|
 | gitleaks | 8.30.1 | ✅ ran | 0.3s |  |
-| osv-scanner | 2.6.0 | ✅ ran | 2.8s |  |
-| semgrep | 1.179.0 | ✅ ran | 2.6s |  |
+| osv-scanner | 2.6.0 | ✅ ran | 4.7s |  |
+| semgrep | 1.179.0 | ✅ ran | 2.5s |  |
 
 </details>
 

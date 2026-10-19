@@ -1,0 +1,16 @@
+# Keep SAFECODE's own dependencies current. Only the repository root is listed,
+# so the intentionally outdated packages in examples/ are left alone.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+  - package-ecosystem: pip
+    directory: /
+    schedule:
+      interval: weekly
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly

@@ -25,3 +25,19 @@ pythonpath = ["src"]
 testpaths = ["tests"]
 addopts = "-ra"
 markers = ["integration: runs real scanner binaries (skipped automatically when they are not installed)"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+extend-exclude = ["examples"]  # intentionally vulnerable demo code
+
+[tool.ruff.lint]
+# pycodestyle, pyflakes, isort, bugbear, pyupgrade, simplify, bandit-style security checks
+select = ["E", "W", "F", "I", "B", "UP", "SIM", "S"]
+ignore = [
+    "S603",  # subprocess without shell: we always pass argument lists, never shell strings
+    "S607",  # partial executable path: scanners are located via PATH by design
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101", "S105", "S106", "S108", "S311", "E501"]  # asserts and fake secrets are the point of tests

@@ -103,9 +103,9 @@ class TestScanResult:
 
 class TestRedaction:
     def test_long_secret_keeps_only_prefix(self):
-        secret = "AKIAABCDEFGHIJKLMNOP"
+        secret = "demoABCDEFGHIJKLMNOP"
         redacted = redact(secret)
-        assert redacted.startswith("AKIA")
+        assert redacted.startswith("demo")
         assert REDACTED in redacted
         assert secret not in redacted
         assert "EFGH" not in redacted
@@ -114,7 +114,7 @@ class TestRedaction:
         assert redact("hunter2") == REDACTED
 
     def test_scrub_removes_every_occurrence(self):
-        secret = "ghp_abcdefghijklmnopqrstuvwxyz0123456789"
+        secret = "tok_abcdefghijklmnopqrstuvwxyz0123456789"
         text = f'token = "{secret}"  # also {secret}'
         cleaned = scrub(text, [secret])
         assert secret not in cleaned

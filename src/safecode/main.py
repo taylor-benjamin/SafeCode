@@ -12,6 +12,7 @@ Runs the same way in two places:
 from __future__ import annotations
 
 import argparse
+import fnmatch
 import json
 import os
 import secrets
@@ -25,7 +26,7 @@ from safecode import __version__, checklist, github, mapping, pr_comment, report
 from safecode.rules import DEFAULT_CHECKLIST, ChecklistError, Rule, load_rules
 from safecode.scanners import gitleaks, osv, semgrep
 from safecode.scanners.base import ScanOutput
-from safecode.schema import CheckResult, CheckStatus, ScanResult, ToolRun, ToolStatus
+from safecode.schema import CheckResult, CheckStatus, Finding, ScanResult, ToolRun, ToolStatus
 
 FAIL_THRESHOLDS = ("off", "A", "B", "C", "D")
 
@@ -39,6 +40,7 @@ class Config:
     fail_threshold: str = "off"  # fail the job if the grade is worse than this letter
     comment_on_pr: bool = True
     semgrep_configs: tuple[str, ...] = ()  # extra Semgrep configs on top of SAFECODE's own rules
+    exclude_paths: tuple[str, ...] = ()  # findings under these paths/globs are ignored
     json_out: Path | None = None
     report_out: Path | None = None
     repo: str = ""  # "owner/name"; defaults to $GITHUB_REPOSITORY inside Actions
@@ -86,7 +88,11 @@ def run(config: Config, rules: dict[str, Rule]) -> ScanResult:
     context = _hygiene_context(config)
     for rule in rules.values():
         if rule.check_type in checklist.HYGIENE_CHECKS:
-            _run_hygiene(rule, context, rules, result)
+            _run_hygiene(config, rule, context, rules, result)
+
+    if result.excluded_count:
+        result.notes.append(f"{result.excluded_count} finding(s) in excluded paths "
+                            f"({', '.join(config.exclude_paths)}) were ignored.")
 
     # Present checks in checklist order regardless of which step produced them.
     order = {rule_id: index for index, rule_id in enumerate(rules)}
@@ -120,7 +126,7 @@ def _run_scanner(config: Config, rules: dict[str, Rule], result: ScanResult,
         for f in output.findings
         if (f.rule_id in rules and rules[f.rule_id].enabled) or f.rule_id not in rules
     ]
-    result.add_findings(findings)
+    result.add_findings(_without_excluded(findings, config, result))
 
     for rule in enabled:
         count = sum(1 for f in result.findings if f.rule_id == rule.id)
@@ -137,7 +143,8 @@ def _hygiene_context(config: Config) -> checklist.HygieneContext:
     )
 
 
-def _run_hygiene(rule: Rule, context: checklist.HygieneContext, rules: dict[str, Rule], result: ScanResult) -> None:
+def _run_hygiene(config: Config, rule: Rule, context: checklist.HygieneContext, rules: dict[str, Rule],
+                 result: ScanResult) -> None:
     """Run one hygiene check and record its outcome; a crash becomes an ERROR result."""
     if not rule.enabled:
         result.checks.append(CheckResult(rule.id, CheckStatus.SKIPPED, "disabled in checklist"))
@@ -148,8 +155,36 @@ def _run_hygiene(rule: Rule, context: checklist.HygieneContext, rules: dict[str,
         traceback.print_exc(file=sys.stderr)
         result.checks.append(CheckResult(rule.id, CheckStatus.ERROR, f"internal error: {type(exc).__name__}"))
         return
-    result.add_findings([mapping.enrich(f, rules) for f in outcome.findings])
-    result.checks.append(CheckResult(rule.id, outcome.status, outcome.summary))
+    kept = _without_excluded([mapping.enrich(f, rules) for f in outcome.findings], config, result)
+    result.add_findings(kept)
+    status, summary = outcome.status, outcome.summary
+    if status is CheckStatus.FAILED and len(kept) != len(outcome.findings):
+        # Some findings were in excluded paths: restate the result for what's left.
+        status = CheckStatus.FAILED if kept else CheckStatus.PASSED
+        summary = f"{len(kept)} finding{'s' if len(kept) != 1 else ''}" if kept else "no issues outside excluded paths"
+    result.checks.append(CheckResult(rule.id, status, summary))
+
+
+def _without_excluded(findings: list[Finding], config: Config, result: ScanResult) -> list[Finding]:
+    """Drop findings located under an excluded path, counting how many were dropped."""
+    kept = [f for f in findings if not (f.location and is_excluded(f.location.path, config.exclude_paths))]
+    result.excluded_count += len(findings) - len(kept)
+    return kept
+
+
+def is_excluded(path: str, patterns: tuple[str, ...]) -> bool:
+    """Whether a repo-relative path matches an exclude pattern.
+
+    "examples", "examples/", and "examples/**" all exclude that directory;
+    other patterns are shell-style globs matched against the whole path ("*.min.js").
+    """
+    for pattern in patterns:
+        directory = pattern.strip().removeprefix("./").removesuffix("/**").rstrip("/")
+        if directory and (path == directory or path.startswith(directory + "/")):
+            return True
+        if fnmatch.fnmatchcase(path, pattern.strip().removeprefix("./")):
+            return True
+    return False
 
 
 def _check_from_tool(rule_id: str, run: ToolRun, count: int) -> CheckResult:
@@ -168,6 +203,30 @@ def _input(name: str, default: str = "") -> str:
     return os.environ.get(f"INPUT_{name.upper()}", default).strip()
 
 
+def _checklist_path(cli_value: Path | None, workspace: Path) -> Path:
+    """--checklist, else the `checklist` input (relative to the repo root), else the built-in checklist."""
+    if cli_value is not None:
+        return cli_value
+    configured = _input("checklist")
+    return workspace / configured if configured else DEFAULT_CHECKLIST
+
+
+def _semgrep_config(value: str, workspace: Path) -> str:
+    """Resolve a local Semgrep config path against the repo root.
+
+    Semgrep runs from scan-path, so a relative path like ".safecode/semgrep" would
+    otherwise break when scan-path is a subdirectory. Registry IDs ("p/python")
+    and URLs are passed through unchanged.
+    """
+    local = workspace / value
+    return str(local.resolve()) if local.exists() else value
+
+
+def _split_list(raw: str) -> list[str]:
+    """Action inputs are single strings; accept comma- or newline-separated lists."""
+    return [item.strip() for item in raw.replace(",", "\n").splitlines() if item.strip()]
+
+
 def _parse_bool(value: str, name: str) -> bool:
     lowered = value.strip().lower()
     if lowered in {"true", "yes", "1"}:
@@ -183,7 +242,8 @@ def parse_config(argv: list[str] | None = None) -> Config:
 
     parser = argparse.ArgumentParser(prog="safecode", description="Security report and grade for a repository.")
     parser.add_argument("--path", default=_input("scan-path", "."), help="directory to scan (default: .)")
-    parser.add_argument("--checklist", type=Path, default=DEFAULT_CHECKLIST, help="checklist YAML to use")
+    parser.add_argument("--checklist", type=Path, default=None,
+                        help="checklist YAML to use instead of SAFECODE's built-in rules/checklist.yml")
     parser.add_argument(
         "--fail-threshold",
         default=_input("fail-threshold", "off"),
@@ -198,16 +258,15 @@ def parse_config(argv: list[str] | None = None) -> Config:
     )
     parser.add_argument("--json-out", type=Path, default=None, help="also write raw results as JSON here")
     parser.add_argument("--report-out", type=Path, default=None, help="also write the Markdown report here")
+    parser.add_argument("--exclude", action="append", default=None,
+                        help="ignore findings under this path or glob (repeatable), e.g. examples/")
     parser.add_argument("--repo", default="", help="GitHub owner/name for the branch-protection check "
                                                    "(default: $GITHUB_REPOSITORY; token from $GITHUB_TOKEN)")
     parser.add_argument("--version", action="version", version=f"safecode {__version__}")
     args = parser.parse_args(argv)
 
-    semgrep_configs = args.semgrep_config
-    if semgrep_configs is None:
-        # The Action input is a single string; allow comma/newline-separated values.
-        raw = _input("semgrep-config").replace(",", "\n")
-        semgrep_configs = [line.strip() for line in raw.splitlines() if line.strip()]
+    semgrep_configs = args.semgrep_config if args.semgrep_config is not None else _split_list(_input("semgrep-config"))
+    exclude_paths = args.exclude if args.exclude is not None else _split_list(_input("exclude-paths"))
 
     # Validated here rather than via argparse `choices`, because argparse does
     # not check defaults, and our default comes from an environment variable.
@@ -222,10 +281,11 @@ def parse_config(argv: list[str] | None = None) -> Config:
 
     return Config(
         path=path.resolve(),
-        checklist=args.checklist,
+        checklist=_checklist_path(args.checklist, workspace),
         fail_threshold=fail_threshold,
         comment_on_pr=_parse_bool(args.comment_on_pr, "comment-on-pr"),
-        semgrep_configs=tuple(semgrep_configs),
+        semgrep_configs=tuple(_semgrep_config(c, workspace) for c in semgrep_configs),
+        exclude_paths=tuple(exclude_paths),
         json_out=args.json_out,
         report_out=args.report_out,
         repo=args.repo,
@@ -266,7 +326,8 @@ def main(argv: list[str] | None = None) -> int:
     if config.report_out:
         config.report_out.write_text(markdown, encoding="utf-8")
     _append_env_file("GITHUB_STEP_SUMMARY", markdown)
-    _append_env_file("GITHUB_OUTPUT", f"grade={score.grade}\nscore={score.score}\nfindings-count={len(result.findings)}\n")
+    outputs = {"grade": score.grade, "score": score.score, "findings-count": len(result.findings)}
+    _append_env_file("GITHUB_OUTPUT", "".join(f"{key}={value}\n" for key, value in outputs.items()))
 
     _print_log(markdown)
 

@@ -1,0 +1,61 @@
+# Tests, lint, and an end-to-end run of the real Docker action.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Tests (Python ${{ matrix.python }})
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.11", "3.12", "3.13", "3.14"]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Install dependencies
+        run: |
+          python -m pip install -r requirements-dev.txt
+          python -m pip install -e . --no-deps
+      - name: Lint
+        run: ruff check .
+      - name: Install pinned scanners (checksum-verified)
+        run: bash scripts/install-dev-tools.sh
+      - name: Run tests (unit + integration with real scanners)
+        run: pytest
+
+  action:
+    name: Docker action on the demo app
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Run SAFECODE on examples/vulnerable-app
+        id: scan
+        uses: ./
+        with:
+          scan-path: examples/vulnerable-app
+          comment-on-pr: "false"
+      - name: Check the action's outputs
+        env:
+          GRADE: ${{ steps.scan.outputs.grade }}
+          SCORE: ${{ steps.scan.outputs.score }}
+          COUNT: ${{ steps.scan.outputs.findings-count }}
+        run: |
+          echo "grade=$GRADE score=$SCORE findings=$COUNT"
+          # The demo app is deliberately terrible: every scanner must have found something.
+          test "$GRADE" = "F"
+          test "$COUNT" -ge 15

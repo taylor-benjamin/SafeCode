@@ -2,8 +2,6 @@
 
 from pathlib import Path
 
-import pytest
-
 from safecode.main import main, parse_config
 from safecode.scanners.base import run_tool
 from safecode.schema import ToolStatus
@@ -45,3 +43,24 @@ class TestRunTool:
         output = run_tool("definitely-not-a-real-scanner", ["--version"], cwd=tmp_path)
         assert output.run.status is ToolStatus.NOT_INSTALLED
         assert output.stdout == ""
+
+
+def test_exclude_paths_input(monkeypatch):
+    monkeypatch.setenv("INPUT_EXCLUDE-PATHS", "examples/\ntests/**, *.min.js")
+    assert parse_config([]).exclude_paths == ("examples/", "tests/**", "*.min.js")
+
+
+def test_custom_checklist_and_local_semgrep_rules_resolve_against_repo_root(monkeypatch, tmp_path):
+    (tmp_path / ".safecode" / "semgrep").mkdir(parents=True)
+    monkeypatch.setenv("GITHUB_WORKSPACE", str(tmp_path))
+    monkeypatch.setenv("INPUT_CHECKLIST", ".safecode/checklist.yml")
+    monkeypatch.setenv("INPUT_SEMGREP-CONFIG", ".safecode/semgrep, p/python")
+    config = parse_config([])
+    assert config.checklist == tmp_path / ".safecode" / "checklist.yml"
+    assert config.semgrep_configs == (str((tmp_path / ".safecode" / "semgrep").resolve()), "p/python")
+
+
+def test_default_checklist_is_builtin():
+    from safecode.rules import DEFAULT_CHECKLIST
+
+    assert parse_config([]).checklist == DEFAULT_CHECKLIST

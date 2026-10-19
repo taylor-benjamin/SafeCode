@@ -11,8 +11,8 @@ import subprocess
 from pathlib import Path
 
 import pytest
-
 from conftest import requires_tool
+
 from safecode import main
 from safecode.mapping import cwe_to_rule
 from safecode.rules import DEFAULT_CHECKLIST, load_rules

@@ -8,6 +8,7 @@ broken scanner can't take the whole scan down with it.
 
 from __future__ import annotations
 
+import contextlib
 import os
 import shutil
 import subprocess
@@ -101,10 +102,8 @@ def relative_path(raw: str, root: Path) -> str:
     """
     path = Path(raw)
     if path.is_absolute():
-        try:
+        with contextlib.suppress(ValueError):  # outside root: keep it as-is rather than guessing
             path = path.resolve().relative_to(root.resolve())
-        except ValueError:
-            pass  # outside root: keep it as-is rather than guessing
     return path.as_posix()
 
 
