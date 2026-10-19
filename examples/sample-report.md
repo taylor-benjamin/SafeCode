@@ -1,6 +1,28 @@
 ## 🛡️ SAFECODE security report for `vulnerable-app`
 
+### 🔴 Grade F · 0/100
+
+<sub>Based on 7 of 8 checks; 1 could not run (see the checklist below).</sub>
+
 **22 findings**: 🔴 3 critical · 🟠 11 high · 🟡 7 medium · 🔵 1 low · ⚪ 0 info
+
+<details>
+<summary>How this score was calculated</summary>
+
+| Rule | Findings | Points |
+|---|---|---|
+| **SC-002** No known-vulnerable dependencies | 8 | −40 (capped from −104) |
+| **SC-003** No SQL injection or unsafe eval | 6 | −40 (capped from −60) |
+| **SC-001** No secrets in code or git history | 1 | −25 |
+| **SC-008** No cleartext HTTP or disabled TLS verification | 4 | −16 |
+| **SC-004** Lockfile present and dependency versions pinned | 1 | −4 |
+| **SC-005** .gitignore excludes secrets and credentials | 1 | −4 |
+| **SC-006** SECURITY.md exists | 1 | −1 |
+| **Total** | | −130 → **0/100** |
+
+Each finding deducts points by severity (critical 25, high 10, medium 4, low 1). Each rule deducts at most 40. A critical finding limits the grade to C. Skipped checks deduct nothing.
+
+</details>
 
 ### Checklist
 
@@ -221,8 +243,8 @@ repository-wide · SC-006 · [SSDF RV.1](https://csrc.nist.gov/pubs/sp/800/218/f
 | Scanner | Version | Status | Time | Details |
 |---|---|---|---|---|
 | gitleaks | 8.30.1 | ✅ ran | 0.3s |  |
-| osv-scanner | 2.6.0 | ✅ ran | 2.5s |  |
-| semgrep | 1.179.0 | ✅ ran | 2.7s |  |
+| osv-scanner | 2.6.0 | ✅ ran | 2.8s |  |
+| semgrep | 1.179.0 | ✅ ran | 2.6s |  |
 
 </details>
 

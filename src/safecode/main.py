@@ -14,13 +14,14 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import secrets
 import sys
 import traceback
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from safecode import __version__, checklist, github, mapping, report
+from safecode import __version__, checklist, github, mapping, pr_comment, report, scoring
 from safecode.rules import DEFAULT_CHECKLIST, ChecklistError, Rule, load_rules
 from safecode.scanners import gitleaks, osv, semgrep
 from safecode.scanners.base import ScanOutput
@@ -247,29 +248,89 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     result = run(config, rules)
-    markdown = report.render(result, rules, repo_name=os.environ.get("GITHUB_REPOSITORY", config.path.name))
+    score = scoring.compute(result, rules)
+    repo_name = os.environ.get("GITHUB_REPOSITORY", config.path.name)
 
+    def render(max_findings: int) -> str:
+        return report.render(result, rules, score, repo_name=repo_name, max_findings=max_findings,
+                             details_url=_run_url())
+
+    if config.comment_on_pr:
+        _comment_on_pr(config, render, result)
+
+    # The job summary allows 1 MiB, so it gets (nearly) every finding in full.
+    markdown = render(SUMMARY_MAX_FINDINGS)
     if config.json_out:
-        config.json_out.write_text(json.dumps(result.to_dict(), indent=2), encoding="utf-8")
+        data = {**result.to_dict(), "score": score.score, "grade": score.grade}
+        config.json_out.write_text(json.dumps(data, indent=2), encoding="utf-8")
     if config.report_out:
         config.report_out.write_text(markdown, encoding="utf-8")
+    _append_env_file("GITHUB_STEP_SUMMARY", markdown)
+    _append_env_file("GITHUB_OUTPUT", f"grade={score.grade}\nscore={score.score}\nfindings-count={len(result.findings)}\n")
 
-    # In GitHub Actions, the job summary file shows on the workflow run page.
-    summary_file = os.environ.get("GITHUB_STEP_SUMMARY")
-    if summary_file:
-        with open(summary_file, "a", encoding="utf-8") as handle:
-            handle.write(markdown)
+    _print_log(markdown)
 
-    _print(markdown)
+    if config.fail_threshold != "off" and scoring.is_worse(score.grade, config.fail_threshold):
+        message = f"Grade {score.grade} ({score.score}/100) is worse than the fail-threshold {config.fail_threshold}."
+        if os.environ.get("GITHUB_ACTIONS") == "true":
+            print(f"::error title=SAFECODE::{message}")
+        print(f"safecode: {message}", file=sys.stderr)
+        return 1
     return 0
 
 
-def _print(text: str) -> None:
-    """Print to stdout, tolerating consoles that can't show emoji (e.g. legacy Windows code pages)."""
+SUMMARY_MAX_FINDINGS = 500
+
+
+def _comment_on_pr(config: Config, render: Callable[[int], str], result: ScanResult) -> None:
+    """Post or update the PR comment when running on a pull request. Never raises."""
+    number = pr_comment.pull_request_number(github.event_payload())
+    if number is None:
+        return  # not a pull_request event: the job summary is the report
+    gh = github.client_from_env(config.repo, config.github_token)
+    if gh is None or not config.github_token:
+        result.notes.append("No GitHub token available, so the report was not posted as a PR comment.")
+        return
+    ok, outcome = pr_comment.upsert_comment(gh, number, pr_comment.fit_report(render))
+    if not ok:
+        result.notes.append(outcome)
+    print(f"safecode: {outcome}", file=sys.stderr)
+
+
+def _run_url() -> str:
+    """Link to this workflow run (where the job summary lives), or "" outside Actions."""
+    server, repo, run_id = (os.environ.get(k, "") for k in ("GITHUB_SERVER_URL", "GITHUB_REPOSITORY", "GITHUB_RUN_ID"))
+    return f"{server}/{repo}/actions/runs/{run_id}" if server and repo and run_id else ""
+
+
+def _append_env_file(variable: str, text: str) -> None:
+    """Append to a file GitHub Actions provides via an environment variable (summary, outputs)."""
+    path = os.environ.get(variable)
+    if path:
+        with open(path, "a", encoding="utf-8") as handle:
+            handle.write(text)
+
+
+def _print_log(text: str) -> None:
+    """Print the report to the job log.
+
+    In Actions, a log line starting with "::" is executed as a workflow command
+    (e.g. ::add-mask:: or ::set-output::). The report contains text from the
+    scanned repository, so command processing is paused around it with a
+    random, unguessable token.
+    """
+    in_actions = os.environ.get("GITHUB_ACTIONS") == "true"
+    token = secrets.token_hex(16)
+    if in_actions:
+        print(f"::stop-commands::{token}")
     try:
         print(text)
-    except UnicodeEncodeError:
-        print(text.encode(sys.stdout.encoding or "ascii", errors="replace").decode(sys.stdout.encoding or "ascii"))
+    except UnicodeEncodeError:  # legacy Windows consoles that can't show emoji
+        encoding = sys.stdout.encoding or "ascii"
+        print(text.encode(encoding, errors="replace").decode(encoding))
+    finally:
+        if in_actions:
+            print(f"::{token}::")
 
 
 if __name__ == "__main__":

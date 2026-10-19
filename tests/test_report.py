@@ -99,3 +99,23 @@ def test_clean_scan_and_tool_failures(rules):
     assert "No findings." in md
     assert "⏭️ not installed" in md
     assert "ℹ️ Shallow clone." in md
+
+
+def test_grade_header_and_breakdown(rules):
+    from safecode import scoring
+
+    result = ScanResult(target=".", checks=[CheckResult("SC-003", CheckStatus.FAILED, "6 findings")])
+    result.add_findings([make(rules, line=n) for n in range(1, 7)])
+    score = scoring.compute(result, rules)
+    md = report.render(result, rules, score)
+    assert md.index("### 🟠 Grade D · 60/100") < md.index("**6 findings**")
+    assert "| **SC-003** No SQL injection or unsafe eval | 6 | −40 (capped from −60) |" in md
+    assert "| **Total** | | −40 → **60/100** |" in md
+    assert "Based on 1 of 8 checks; 7 could not run" in md
+
+
+def test_hidden_findings_link_to_run(rules):
+    result = ScanResult(target=".")
+    result.add_findings([make(rules, line=n) for n in range(1, 4)])
+    md = report.render(result, rules, max_findings=1, details_url="https://github.com/o/r/actions/runs/1")
+    assert "See [the job summary](https://github.com/o/r/actions/runs/1) for the full list." in md
