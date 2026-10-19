@@ -1,0 +1,3 @@
+# Local development and CI test dependencies (any OS, any Python 3.11+).
+pyyaml==6.0.3
+pytest==9.1.1

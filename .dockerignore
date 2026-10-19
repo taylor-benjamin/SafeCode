@@ -1,0 +1,6 @@
+# Only src/, rules/, and requirements.txt are needed in the image.
+*
+!src/
+!rules/
+!requirements.txt
+**/__pycache__

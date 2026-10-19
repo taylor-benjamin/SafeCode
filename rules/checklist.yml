@@ -1,0 +1,193 @@
+# SAFECODE checklist (v0.1)
+#
+# Each rule below is one secure-development practice. You can edit wording,
+# change severities, disable a rule (enabled: false), or add new rules without
+# touching any Python code.
+#
+# Fields
+#   id              Unique ID, format SC-NNN. Findings and reports refer to it.
+#   name            Short title shown in the report.
+#   description     What the rule checks, in one or two sentences.
+#   severity        Default severity: critical | high | medium | low | info.
+#                   A scanner may override it per finding (e.g. a CVE's own score).
+#   check.type      Which engine evaluates the rule:
+#                     gitleaks          secrets in files and git history
+#                     osv               known-vulnerable dependencies
+#                     semgrep           code patterns; findings are linked to this rule
+#                                       by `metadata.safecode-rule: <id>` in rules/semgrep/
+#                     lockfile          dependency lockfiles present and versions pinned
+#                     gitignore         .gitignore excludes the listed patterns
+#                     file_exists       any of the listed paths exists
+#                     branch_protection default branch is protected (needs a GitHub token)
+#   check.*         Extra settings for that check type (see examples below).
+#   mapping         Standard IDs this rule maps to. Supported keys:
+#                     owasp      OWASP Top 10 2025, e.g. "A05:2025"
+#                     cwe        e.g. "CWE-89"
+#                     nist_ssdf  NIST SP 800-218 practice, e.g. "PW.4"
+#   why_it_matters  One or two sentences for a junior developer. No jargon without explanation.
+#   fix             A concrete next step.
+#   enabled         Optional, defaults to true.
+
+version: 1
+
+rules:
+  - id: SC-001
+    name: No secrets in code or git history
+    description: >-
+      Passwords, API keys, tokens, and private keys must not be committed,
+      including in old commits that were later "deleted".
+    severity: critical
+    check:
+      type: gitleaks
+    mapping:
+      cwe: [CWE-798]
+      owasp: ["A07:2025"]
+      nist_ssdf: [PS.1]
+    why_it_matters: >-
+      Anyone who can read the repo (or ever cloned it) can copy a committed key
+      and use it as you. Deleting the file later does not help, because git
+      keeps the old version in history.
+    fix: >-
+      Revoke and rotate the credential first, since it must be treated as
+      leaked. Then move it to an environment variable or your platform's
+      secret store (e.g. GitHub Actions secrets) and, if needed, rewrite
+      history with git filter-repo.
+
+  - id: SC-002
+    name: No known-vulnerable dependencies
+    description: >-
+      Third-party packages listed in your manifests and lockfiles must not
+      have published security advisories affecting the version you use.
+    severity: high
+    check:
+      type: osv
+    mapping:
+      owasp: ["A03:2025"]
+      cwe: [CWE-1395]
+      nist_ssdf: [PW.4]
+    why_it_matters: >-
+      Attackers scan the internet for apps running library versions with
+      public exploits. A vulnerable dependency is a vulnerability in your app,
+      even though you did not write that code.
+    fix: >-
+      Upgrade the package to the fixed version shown in the finding, then
+      re-run your tests. If no fix exists yet, check whether you actually call
+      the vulnerable function and consider an alternative package.
+
+  - id: SC-003
+    name: No SQL injection or unsafe eval
+    description: >-
+      Code must not build SQL queries by gluing strings together with user
+      input, and must not pass dynamic strings to eval/exec-style functions.
+    severity: high
+    check:
+      type: semgrep
+    mapping:
+      owasp: ["A05:2025"]
+      cwe: [CWE-89, CWE-95]
+      nist_ssdf: [PW.5]
+    why_it_matters: >-
+      If user input becomes part of a query or of code that gets executed, an
+      attacker can type commands instead of data: reading every row in your
+      database, deleting it, or running code on your server.
+    fix: >-
+      Use parameterised queries (placeholders like ? or %s with a separate
+      argument list) or your ORM's query builder. Replace eval with a safe
+      parser such as json.loads or ast.literal_eval.
+
+  - id: SC-004
+    name: Lockfile present and dependency versions pinned
+    description: >-
+      Every dependency manifest has a matching lockfile (or exact version
+      pins), so every build installs the same, reviewed versions.
+    severity: medium
+    check:
+      type: lockfile
+    mapping:
+      nist_ssdf: [PW.4]
+      owasp: ["A03:2025"]
+      cwe: [CWE-1357]
+    why_it_matters: >-
+      Without pinned versions, a build next week can silently pull in a newer
+      package, including a compromised one, that nobody reviewed.
+    fix: >-
+      Commit the lockfile your package manager generates (package-lock.json,
+      poetry.lock, Cargo.lock, go.sum, ...). For plain requirements.txt, pin
+      exact versions with == or generate one with pip-compile.
+
+  - id: SC-005
+    name: .gitignore excludes secrets and credentials
+    description: >-
+      The repository's .gitignore blocks common secret-bearing files so they
+      cannot be committed by accident.
+    severity: medium
+    check:
+      type: gitignore
+      patterns: [".env", "*.pem", "*.key", "credentials*"]
+    mapping:
+      cwe: [CWE-538]
+      owasp: ["A02:2025"]
+      nist_ssdf: [PS.1]
+    why_it_matters: >-
+      A single "git add ." can publish your local .env file or a private key.
+      Ignoring these files up front makes that mistake much harder to make.
+    fix: >-
+      Add the missing patterns listed in the finding to .gitignore. If any of
+      those files are already tracked, also run git rm --cached <file>.
+
+  - id: SC-006
+    name: SECURITY.md exists
+    description: >-
+      The repository tells people how to report a vulnerability privately.
+    severity: low
+    check:
+      type: file_exists
+      paths: [SECURITY.md, .github/SECURITY.md, docs/SECURITY.md]
+    mapping:
+      nist_ssdf: [RV.1]
+    why_it_matters: >-
+      Without clear instructions, someone who finds a security bug may open a
+      public issue, which tells attackers about it before you can fix it.
+    fix: >-
+      Add a SECURITY.md that names a private contact (an email address or
+      GitHub's private vulnerability reporting) and which versions you support.
+
+  - id: SC-007
+    name: Branch protection enabled on the default branch
+    description: >-
+      The default branch requires changes to go through a pull request rather
+      than direct pushes.
+    severity: medium
+    check:
+      type: branch_protection
+    mapping:
+      nist_ssdf: [PS.1, PO.5]
+      owasp: ["A08:2025"]
+    why_it_matters: >-
+      If anyone can push straight to main, one stolen laptop or token is
+      enough to ship malicious code with no review.
+    fix: >-
+      In GitHub go to Settings > Rules > Rulesets (or Settings > Branches) and
+      protect the default branch: require a pull request, and block force
+      pushes and deletion.
+
+  - id: SC-008
+    name: No cleartext HTTP or disabled TLS verification
+    description: >-
+      Code must not call remote services over plain http:// or turn off TLS
+      certificate checks.
+    severity: medium
+    check:
+      type: semgrep
+    mapping:
+      owasp: ["A04:2025"]
+      cwe: [CWE-319, CWE-295]
+      nist_ssdf: [PW.5]
+    why_it_matters: >-
+      Plain HTTP, or HTTPS without certificate checks, lets anyone on the same
+      network (public Wi-Fi, a compromised router) read or change the data in
+      transit, including passwords and tokens.
+    fix: >-
+      Use https:// URLs and leave certificate verification on (remove
+      verify=False / rejectUnauthorized: false). For self-signed internal
+      certificates, point the client at your CA bundle instead.

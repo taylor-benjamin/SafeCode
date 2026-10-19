@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Locally downloaded scanner binaries for development
+.tools/
+
+# Scan output
+safecode-results.json
+safecode-report.md
+
+# Secrets and credentials (SAFECODE checks other repos for these; practise what we preach)
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+credentials*
+id_rsa*
+id_ed25519*
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

@@ -1,0 +1,49 @@
+name: SAFECODE Security Report
+description: >-
+  Scan a repository with Semgrep, Gitleaks, and OSV-Scanner, check it against
+  secure-development practices, and post a plain-English report with an A-F grade.
+author: SAFECODE contributors
+
+branding:
+  icon: shield
+  color: green
+
+inputs:
+  fail-threshold:
+    description: >-
+      Fail the job if the grade is worse than this letter (A, B, C, or D).
+      Use "off" to always pass and only report.
+    required: false
+    default: "off"
+  comment-on-pr:
+    description: Post (and keep updated) a single report comment on pull requests.
+    required: false
+    default: "true"
+  github-token:
+    description: >-
+      Token used for the PR comment and the branch-protection check. The default
+      job token is enough; grant `pull-requests: write` to allow commenting.
+    required: false
+    default: ${{ github.token }}
+  scan-path:
+    description: Directory to scan, relative to the repository root.
+    required: false
+    default: "."
+  semgrep-config:
+    description: >-
+      Optional extra Semgrep configs (comma- or newline-separated), e.g. "p/python".
+      SAFECODE's own rules always run.
+    required: false
+    default: ""
+
+outputs:
+  grade:
+    description: Letter grade from A to F.
+  score:
+    description: Numeric score from 0 to 100.
+  findings-count:
+    description: Total number of findings.
+
+runs:
+  using: docker
+  image: Dockerfile

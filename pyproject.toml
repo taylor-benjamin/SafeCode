@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=77"]  # 77+ understands the SPDX `license = "MIT"` form
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "safecode"
+version = "0.1.0.dev0"
+description = "A GitHub Action that turns Semgrep, Gitleaks, and OSV-Scanner results into a plain-English security report with an A-F grade."
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.11"
+dependencies = ["pyyaml>=6.0,<7"]
+
+[project.optional-dependencies]
+dev = ["pytest>=9"]
+
+[project.scripts]
+safecode = "safecode.main:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+addopts = "-ra"

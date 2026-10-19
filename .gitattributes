@@ -1,0 +1,2 @@
+# Force LF everywhere: this repo builds and runs on Linux runners.
+* text=auto eol=lf
