@@ -1,7 +1,7 @@
 # Local development and CI test dependencies (any OS, Python 3.11+).
 # Fully pinned, including transitive dependencies, so every install is identical.
 pyyaml==6.0.3
-pytest==9.1.1
+pytest==9.2.0
 iniconfig==2.3.1
 packaging==26.3
 pluggy==1.7.0
